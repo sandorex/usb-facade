@@ -18,55 +18,13 @@
 #include <format>
 
 #include "usb-facade/version.hh"
+#include "common.hh"
 #include "macros.hh"
 
-/// Gets string using libusb_get_string_descriptor_ascii, modifies string reference passed
-int get_string(libusb_device_handle* handle, uint8_t index, std::string& string, size_t max_length=100) {
-    std::vector<unsigned char> buffer(max_length);
+libusb_context* ctx;
 
-    auto length = libusb_get_string_descriptor_ascii(
-        handle,
-        index,
-        buffer.data(),
-        static_cast<int>(buffer.capacity())
-    );
-
-    // return the error code
-    if (length < 0)
-        return length;
-
-    // ensure there is termination of the string
-    buffer.back() = '\0';
-
-    string = std::string(reinterpret_cast<char*>(buffer.data()), length);
-
-    // success code
-    return 0;
-}
-
-/// @brief converts the USB hex value from libusb to human readable one '0x210' -> '2.1'
-std::string get_usb_string(int usb_code) {
-    auto string = std::format("{:x}", usb_code);
-
-    // invalid argument
-    if (string.length() <= 2)
-        return "";
-
-    // erase last zero
-    string.pop_back();
-
-    string.insert(string.cbegin() + 1, '.');
-
-    return string;
-}
-
-/// @brief creates a string of spaces as indent
-constexpr std::string indent(int n) {
-    return std::string(n, ' ');
-}
-
-/// @brief lists all devices to stdout
-int list_devices(libusb_context* ctx, argparse::ArgumentParser& prog) {
+/// @brief lists all devices to stdout, calls `std::exit` afterwards
+void cmd_list_devices(argparse::ArgumentParser& prog) {
     libusb_device** devices;
     ssize_t length = libusb_get_device_list(ctx, &devices);
     if (length < 0) {
@@ -74,15 +32,13 @@ int list_devices(libusb_context* ctx, argparse::ArgumentParser& prog) {
                     << indent(2)
                     << libusb_strerror(static_cast<int>(length))
                     << '\n';
-        return EXIT_FAILURE;
+
+        std::exit(EXIT_FAILURE);
     }
 
     DEFER([&] { libusb_free_device_list(devices, true); });
 
     std::cout << "found " << length << " USB devices:\n";
-
-    // found the exact device using vid/pid
-    bool found = false;
 
     libusb_device* device;
     libusb_device_descriptor desc;
@@ -97,17 +53,7 @@ int list_devices(libusb_context* ctx, argparse::ArgumentParser& prog) {
             continue;
         }
 
-        if (prog.present<unsigned int>("--vid").has_value() && prog.present<unsigned int>("--pid").has_value())
-            found = prog.get<unsigned int>("--vid") == desc.idVendor
-                    && prog.get<unsigned int>("--pid") == desc.idProduct;
-
-        std::cout << std::format("Device {}: USB {} (VID {:#x} PID {:#x})", i, get_usb_string(desc.bcdUSB), desc.idVendor, desc.idProduct);
-
-        if (found)
-            std::cout << " * <--- [DEVICE FOUND!]";
-
-        std::cout << '\n';
-
+        std::cout << std::format("Device {}: USB {} (VID {:#x} PID {:#x})", i, get_usb_string(desc.bcdUSB), desc.idVendor, desc.idProduct) << '\n';
         std::cout << std::format("Class {:#x} Subclass {:#x} Protocol {:#x}", desc.bDeviceClass, desc.bDeviceSubClass, desc.bDeviceProtocol) << '\n';
 
         if (int err = libusb_open(device, &handle); err != 0) {
@@ -189,50 +135,132 @@ int list_devices(libusb_context* ctx, argparse::ArgumentParser& prog) {
         }
     }
 
-    return EXIT_SUCCESS;
+    std::exit(EXIT_SUCCESS);
+}
+
+void interruptt(libusb_transfer* transfer) {
+    std::cout << "got data: " << transfer->actual_length << '\n';
+
+    libusb_submit_transfer(transfer);
+}
+
+void cmd_listen(argparse::ArgumentParser& prog) {
+    auto vid = prog.present<uint16_t>("vid");
+    auto pid = prog.present<uint16_t>("pid");
+
+    if (!vid.has_value() || !pid.has_value()) {
+        std::cout << "invalid arguments\n\n"
+                  << prog;
+
+        std::exit(EXIT_FAILURE);
+    }
+
+    libusb_device_handle* handle = libusb_open_device_with_vid_pid(ctx, vid.value(), pid.value());
+    if (handle == NULL) {
+        std::cout << "error opening the device\n";
+        std::exit(EXIT_FAILURE);
+    }
+
+    // int err = libusb_claim_interface(handle, 0);
+    // if (err < 0) {
+    //     std::cout << "claiming interface failed\n";
+    //     std::exit(EXIT_FAILURE);
+    // }
+
+    // DEFER([&] { libusb_release_interface(handle, 0); });
+
+    std::vector<unsigned char> data(prog.get<uint8_t>("--max-length"));
+
+    // libusb_transfer transfer;
+    libusb_transfer* transfer = libusb_alloc_transfer(0);
+    DEFER([&] { libusb_free_transfer(transfer); });
+
+    // auto interrupt = [](libusb_transfer* transfer) {
+    //     std::cout << "got data: " << transfer->actual_length << '\n';
+
+    //     libusb_submit_transfer(transfer);
+    // };
+
+    libusb_fill_interrupt_transfer(
+        transfer,
+        handle,
+        prog.get<int8_t>("addr"),
+        data.data(),
+        static_cast<int>(data.capacity()),
+        &interruptt,
+        NULL,
+        0
+    );
+
+    int err = libusb_submit_transfer(transfer);
+    if (err != 0) {
+        std::cout << "error submitting transfer: " << libusb_strerror(err) << '\n';
+        std::exit(EXIT_FAILURE);
+    }
+
+    while(err == 0) {
+        err = libusb_handle_events_completed(ctx, &err);
+    }
+
+    if (err != 0) {
+        std::cout << "error handling events?: " << libusb_strerror(err) << '\n';
+        std::exit(EXIT_FAILURE);
+    }
+
+    std::exit(EXIT_SUCCESS);
 }
 
 int main(int argc, char *argv[]) {
-    libusb_context* ctx;
+    argparse::ArgumentParser prog("usb-facade", USB_FACADE_VERSION_STRING);
 
-    argparse::ArgumentParser program("usb-facade", USB_FACADE_VERSION_STRING);
+    prog.add_description("Read data from USB devices raw, let your imagination run wild");
 
-    program.add_description("Application that allows you to read USB devices raw\n"
-                            "Also provides API for use with AutoHotkey (Windows)");
-    program.add_epilog("The data from the device replace '@@' argument and are provided to the script");
-
-    program.add_argument("-d", "--debug")
+    prog.add_argument("-d", "--debug")
         .default_value(false)
         .implicit_value(true)
         .help("Enable debugging");
 
-    program.add_argument("-l", "--list")
-        .default_value(false)
-        .implicit_value(true)
-        .help("List all devices");
+    argparse::ArgumentParser list_cmd("list");
+    list_cmd.add_description("List all USB devices and their information");
+    prog.add_subparser(list_cmd);
 
-    program.add_argument("-p", "--pid")
-        .scan<'i', unsigned int>()
-        .help("Product ID of the device");
+    argparse::ArgumentParser listen_cmd("listen");
+    listen_cmd.add_description("Reads from device to stdout");
+    listen_cmd.add_epilog("To find vid, pid, address of a device use 'list' command");
 
-    program.add_argument("-v", "--vid")
-        .scan<'i', unsigned int>()
-        .help("Vendor ID of the device");
+    listen_cmd.add_argument("--max-length")
+              .default_value(5)
+              .scan<'i', uint8_t>()
+              .help("Maximum length of data you expect to receive (in bytes), 255 is the maximum");
 
-    program.add_argument("--stdout")
-        .default_value(false)
-        .implicit_value(true)
-        .help("Use stdout instead of the command");
+    listen_cmd.add_argument("vid")
+              .scan<'i', uint16_t>()
+              .help("Vendor ID of the device");
 
-    program.add_argument("command")
-        .default_value(std::vector<std::string>{})
-        .remaining();
+    listen_cmd.add_argument("pid")
+              .scan<'i', uint16_t>()
+              .help("Product ID of the device");
+
+    listen_cmd.add_argument("addr")
+              .scan<'i', uint8_t>()
+              .help("Endpoint address (direction must be IN aka DEVICE TO HOST)");
+
+    prog.add_subparser(listen_cmd);
+
+    argparse::ArgumentParser ahk_cmd("ahk");
+    ahk_cmd.add_description("AutoHotkey specific commands");
+    ahk_cmd.add_epilog("For more information go to https://github.com/sandorex/usb-facade");
+
+    prog.add_subparser(ahk_cmd);
 
     try {
-        program.parse_args(argc, argv);
-    } catch (const std::runtime_error& err) {
-        std::cerr << err.what() << std::endl;
-        std::cerr << program;
+        prog.parse_args(argc, argv);
+    } catch (const std::exception& err) {
+        std::cerr << "error while parsing args:\n"
+                  << indent(2)
+                  << err.what()
+                  << "\n\n"
+                  << prog;
         return EXIT_FAILURE;
     }
 
@@ -242,28 +270,35 @@ int main(int argc, char *argv[]) {
                   << libusb_strerror(err)
                   << '\n';
 
-        return EXIT_FAILURE;
+        std::exit(EXIT_FAILURE);
     }
 
     DEFER([&] { libusb_exit(ctx); });
 
-    if (program.get<bool>("--debug")) {
+    if (prog.get<bool>("--debug")) {
         std::cout << "debugging mode enabled\n";
         libusb_set_option(ctx, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_DEBUG);
     }
 
-    // TODO: do this when actually using the device
-    // libusb_set_auto_detach_kernel_driver(ctx, true);
+    try {
+        if (prog.is_subcommand_used("list"))
+            cmd_list_devices(list_cmd);
 
-    if (program.get<bool>("--list"))
-        return list_devices(ctx, program);
-
-    if (!program.present<unsigned int>("--pid").has_value() || !program.present<unsigned int>("--vid").has_value()) {
-        std::cout << "pid/vid not provided" << '\n';
+        if (prog.is_subcommand_used("listen"))
+            cmd_listen(listen_cmd);
+    } catch (const std::exception& err) {
+        std::cerr << "error ??:\n"
+                  << indent(2)
+                  << err.what()
+                  << "\n\n"
+                  << prog;
         return EXIT_FAILURE;
     }
 
-    // assume pipe if no unmatched arguments provided
+
+
+    // TODO: do this when actually using the device
+    // libusb_set_auto_detach_kernel_driver(ctx, true);
 
     return EXIT_SUCCESS;
 }
