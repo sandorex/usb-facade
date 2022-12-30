@@ -30,5 +30,5 @@ struct TransferData {
     CallbackFn* callback;
 };
 
-int listen_device_cb(libusb_context* ctx, uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData::CallbackFn* callback);
+int listen_device_cb(uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData::CallbackFn* callback);
 

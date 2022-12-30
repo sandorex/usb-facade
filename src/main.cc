@@ -21,12 +21,10 @@
 #include "common.hh"
 #include "macros.hh"
 
-libusb_context* ctx;
-
 /// @brief lists all devices to stdout
 int cmd_list_devices() {
     libusb_device** devices;
-    ssize_t length = libusb_get_device_list(ctx, &devices);
+    ssize_t length = libusb_get_device_list(NULL, &devices);
     if (length < 0) {
         std::cerr << std::format("could not get usb device list\n  {}\n\n", libusb_strerror(static_cast<int>(length)));
 
@@ -124,6 +122,7 @@ int main(int argc, char *argv[]) {
     argparse::ArgumentParser prog("usb-facade", USB_FACADE_VERSION_STRING);
 
     prog.add_description("Read data from USB devices raw, let your imagination run wild");
+    prog.add_epilog("For autohotkey API check out https://github.com/sandorex/usb-facade/");
 
     prog.add_argument("-d", "--debug")
         .default_value(false)
@@ -154,12 +153,8 @@ int main(int argc, char *argv[]) {
               .scan<'i', uint8_t>()
               .help("Endpoint address (direction must be IN aka DEVICE TO HOST)");
 
-    argparse::ArgumentParser ahk_cmd("ahk");
-    ahk_cmd.add_description("AutoHotkey specific commands");
-
     prog.add_subparser(list_cmd);
     prog.add_subparser(listen_cmd);
-    prog.add_subparser(ahk_cmd);
 
     try {
         prog.parse_args(argc, argv);
@@ -169,17 +164,17 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    if (auto err = libusb_init(&ctx); err != 0) {
+    if (auto err = libusb_init(NULL); err != 0) {
         std::cerr << std::format("could not initialize libusb:\n  {}\n", libusb_strerror(err));
 
         std::exit(EXIT_FAILURE);
     }
 
-    DEFER([&] { libusb_exit(ctx); });
+    DEFER([&] { libusb_exit(NULL); });
 
     if (prog.get<bool>("--debug")) {
         std::cout << "debugging mode enabled\n";
-        libusb_set_option(ctx, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_DEBUG);
+        libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_DEBUG);
     }
 
     if (prog.is_subcommand_used("list"))
@@ -193,15 +188,12 @@ int main(int argc, char *argv[]) {
         };
 
         return listen_device_cb(
-            ctx,
             listen_cmd.get<uint16_t>("vid"),
             listen_cmd.get<uint16_t>("pid"),
             listen_cmd.get<uint8_t>("addr"),
             listen_cmd.get<unsigned int>("--max-length"),
             cb
         );
-    } else if (prog.is_subcommand_used("ahk")) {
-        std::cout << ahk_cmd;
     } else
         std::cout << prog;
 

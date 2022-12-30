@@ -57,10 +57,10 @@ std::string get_usb_string(int usb_code) {
     return string;
 }
 
-int listen_device_cb(libusb_context* ctx, uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData::CallbackFn* callback) {
+int listen_device_cb(uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData::CallbackFn* callback) {
     int err;
 
-    libusb_device_handle* handle = libusb_open_device_with_vid_pid(ctx, vid, pid);
+    libusb_device_handle* handle = libusb_open_device_with_vid_pid(NULL, vid, pid);
     if (handle == NULL) {
         std::cerr << "error opening the device\n";
 
@@ -156,7 +156,7 @@ int listen_device_cb(libusb_context* ctx, uint16_t vid, uint16_t pid, uint8_t ad
     }
 
     while(err == 0) {
-        err = libusb_handle_events_completed(ctx, &err);
+        err = libusb_handle_events_completed(NULL, &err);
     }
 
     if (err != 0) {
