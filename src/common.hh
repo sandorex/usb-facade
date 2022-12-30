@@ -23,7 +23,12 @@ int get_string(libusb_device_handle* handle, uint8_t index, std::string& string,
 /// @brief converts the USB hex value from libusb to human readable one '0x210' -> '2.1'
 std::string get_usb_string(int usb_code);
 
-/// @brief creates a string of spaces as indent
-constexpr std::string indent(int n) {
-    return std::string(n, ' ');
-}
+/// @brief Struct that is provided in callback
+struct TransferData {
+    using CallbackFn = void(unsigned char*, int, TransferData*);
+
+    CallbackFn* callback;
+};
+
+int listen_device_cb(libusb_context* ctx, uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData::CallbackFn* callback);
+

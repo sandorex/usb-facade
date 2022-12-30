@@ -6,7 +6,9 @@
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${command:cmake.launchTargetPath}",
-            "args": [],
+            "args": [
+
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [
@@ -25,7 +27,9 @@
                 "type": "cmake"
             },
             "program": "${command:cmake.launchTargetPath}",
-            "args": [],
+            "args": [
+
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [

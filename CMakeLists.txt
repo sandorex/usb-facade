@@ -77,5 +77,11 @@ target_link_libraries (common_options INTERFACE ${LIBUSB_LIBRARY}
 add_executable (usb-facade src/main.cc src/common.cc)
 target_link_libraries (usb-facade PUBLIC common_options)
 
-# so that AHK can use them?
-set_target_properties (usb-facade PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+if (WIN32)
+    add_library (usb-facade-ahk SHARED src/ahk_api.cc src/common.cc)
+    set_target_properties (usb-facade-ahk PROPERTIES
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
+        OUTPUT_NAME usb-facade
+    )
+    target_link_libraries (usb-facade-ahk PUBLIC common_options)
+endif ()

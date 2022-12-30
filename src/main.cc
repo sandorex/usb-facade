@@ -23,14 +23,14 @@
 
 libusb_context* ctx;
 
-/// @brief lists all devices to stdout, calls `std::exit` afterwards
-void cmd_list_devices() {
+/// @brief lists all devices to stdout
+int cmd_list_devices() {
     libusb_device** devices;
     ssize_t length = libusb_get_device_list(ctx, &devices);
     if (length < 0) {
         std::cerr << std::format("could not get usb device list\n  {}\n\n", libusb_strerror(static_cast<int>(length)));
 
-        std::exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     DEFER([&] { libusb_free_device_list(devices, true); });
@@ -117,127 +117,7 @@ void cmd_list_devices() {
         }
     }
 
-    std::exit(EXIT_SUCCESS);
-}
-
-struct TransferData {
-    using Callback = std::function<void(unsigned char*, int)>;
-
-    Callback* callback;
-};
-
-void cmd_listen(uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData::Callback* callback) {
-    int err;
-
-    libusb_device_handle* handle = libusb_open_device_with_vid_pid(ctx, vid, pid);
-    if (handle == NULL) {
-        std::cerr << "error opening the device\n";
-        std::exit(EXIT_FAILURE);
-    }
-
-    DEFER([&] { libusb_close(handle); });
-
-    // for linux, does nothing on windows
-    libusb_set_auto_detach_kernel_driver(handle, true);
-
-    libusb_config_descriptor* cfg;
-    if (err = libusb_get_active_config_descriptor(libusb_get_device(handle), &cfg); err != 0) {
-        std::cerr << "error getting config descriptor\n"
-                  << indent(2)
-                  << libusb_strerror(err)
-                  << '\n';
-    }
-
-    DEFER([&] { libusb_free_config_descriptor(cfg); });
-
-    bool found = false;
-    int interface_index = 0;
-    for (int i = 0; i < cfg->bNumInterfaces; ++i) {
-        auto& altsetting = cfg->interface[i].altsetting;
-        for (int j = 0; j < altsetting->bNumEndpoints; ++j) {
-            auto& endpoint = altsetting->endpoint[j];
-            if (endpoint.bEndpointAddress == address) {
-                interface_index = i;
-                found = true;
-                break;
-            }
-
-        }
-
-        if (found)
-            break;
-    }
-
-    if (!found) {
-        std::cerr << std::format("error interface with endpoint address {:#x} not found", address) << '\n';
-        std::exit(EXIT_FAILURE);
-    }
-
-    if (err = libusb_claim_interface(handle, interface_index); err != 0) {
-        std::cerr << "error claiming interface:"
-                  << '\n'
-                  << indent(2)
-                  << libusb_strerror(err)
-                  << '\n';
-
-        std::exit(EXIT_FAILURE);
-    }
-
-    DEFER([&] { libusb_release_interface(handle, interface_index); });
-
-    std::vector<unsigned char> data(max_length);
-
-    // libusb_transfer transfer;
-    libusb_transfer* transfer = libusb_alloc_transfer(0);
-    DEFER([&] { libusb_free_transfer(transfer); });
-
-    auto interrupt = [](libusb_transfer* transfer) {
-        auto data = reinterpret_cast<TransferData*>(transfer->user_data);
-
-        // call the callback with the data pointer and length
-        if (data != NULL)
-            (*data->callback)(transfer->buffer, transfer->actual_length);
-
-        libusb_submit_transfer(transfer);
-    };
-
-    // expandable for futureproofing
-    TransferData transfer_data {
-        .callback = callback
-    };
-
-    libusb_fill_interrupt_transfer(
-        transfer,
-        handle,
-        address,
-        data.data(),
-        static_cast<int>(data.capacity()),
-        interrupt,
-        &transfer_data,
-        0
-    );
-
-    if (err = libusb_submit_transfer(transfer); err != 0) {
-        std::cerr << "error submitting transfer:"
-                  << '\n'
-                  << indent(2)
-                  << libusb_strerror(err)
-                  << '\n';
-
-        std::exit(EXIT_FAILURE);
-    }
-
-    while(err == 0) {
-        err = libusb_handle_events_completed(ctx, &err);
-    }
-
-    if (err != 0) {
-        std::cerr << std::format("error handling events?:\n  {}\n", libusb_strerror(err));
-
-        std::exit(EXIT_FAILURE);
-    }
-
-    std::exit(EXIT_SUCCESS);
+    return EXIT_SUCCESS;
 }
 
 int main(int argc, char *argv[]) {
@@ -260,7 +140,7 @@ int main(int argc, char *argv[]) {
     listen_cmd.add_argument("--max-length")
               .scan<'d', unsigned int>()
               .default_value(5U)
-              .help("Maximum length of data you want to receive (in bytes), 255 is the maximum");
+              .help("Maximum length of data you want to receive (in bytes)");
 
     listen_cmd.add_argument("vid")
               .scan<'i', uint16_t>()
@@ -276,7 +156,6 @@ int main(int argc, char *argv[]) {
 
     argparse::ArgumentParser ahk_cmd("ahk");
     ahk_cmd.add_description("AutoHotkey specific commands");
-    ahk_cmd.add_epilog("For more information go to https://github.com/sandorex/usb-facade");
 
     prog.add_subparser(list_cmd);
     prog.add_subparser(listen_cmd);
@@ -304,24 +183,27 @@ int main(int argc, char *argv[]) {
     }
 
     if (prog.is_subcommand_used("list"))
-        cmd_list_devices();
-
-    if (prog.is_subcommand_used("listen")) {
-        TransferData::Callback cb = [](unsigned char* data, int length) {
+        return cmd_list_devices();
+    else if (prog.is_subcommand_used("listen")) {
+        auto cb = [](unsigned char* data, int length, TransferData*) {
             for (size_t i = 0; i < length; ++i)
                 std::cout << std::format("{:#x} ", data[i]);
 
             std::cout << '\n';
         };
 
-        cmd_listen(
+        return listen_device_cb(
+            ctx,
             listen_cmd.get<uint16_t>("vid"),
             listen_cmd.get<uint16_t>("pid"),
             listen_cmd.get<uint8_t>("addr"),
             listen_cmd.get<unsigned int>("--max-length"),
-            &cb
+            cb
         );
-    }
+    } else if (prog.is_subcommand_used("ahk")) {
+        std::cout << ahk_cmd;
+    } else
+        std::cout << prog;
 
     return EXIT_SUCCESS;
 }

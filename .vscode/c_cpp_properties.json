@@ -4,7 +4,9 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/src",
-                "${workspaceFolder}/build/include"
+                "${workspaceFolder}/build/include",
+                "${workspaceFolder}/build/_deps/libusb_src-src/libusb",
+                "${workspaceFolder}/build/_deps/argparse-src/include"
             ],
             "defines": [
                 "_DEBUG",
