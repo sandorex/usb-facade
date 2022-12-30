@@ -1,0 +1,58 @@
+name: Build n Release
+
+permissions:
+  contents: write
+
+on: push
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    # Install latest CMake and Ninja.
+    - uses: lukka/get-cmake@latest
+
+    # Build the fonts
+    - name: Build
+      run: |
+        cmake . -DCMAKE_BUILD_TYPE=Release -Bbuild
+        cmake --build build --config Release
+
+    - name: Get Version
+      shell: bash
+      id: version
+      run: |
+        echo "commit=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    # Package the required files into a zip
+    - name: Package
+      shell: bash
+      run: |
+        7z a usb-facade.zip README.md                     \
+                            LICENSE.txt                   \
+                            src/ahk_api.cc                \
+                            build/Release/usb-facade.exe  \
+                            build/Release/usb-facade.dll
+
+    - name: Release Dev Build
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Dev Build (${{ steps.version.outputs.commit }})
+        tag_name: LATEST
+        fail_on_unmatched_files: true
+        prerelease: true
+        files: | # NOTE: files have to be overriden otherwise they will stay outdated so no version in name
+          usb-facade.zip
+
+    - name: Release Tagged Build
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        fail_on_unmatched_files: true
+        files: |
+          usb-facade.zip
+          ./**/usb-facade.exe
+          ./**/usb-facade.dll
+          src/ahk_api.cc
