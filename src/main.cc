@@ -136,6 +136,11 @@ int main(int argc, char *argv[]) {
     listen_cmd.add_description("Reads from device to stdout");
     listen_cmd.add_epilog("To find vid, pid, address of a device use 'list' command");
 
+    listen_cmd.add_argument("--keyboard")
+              .default_value(false)
+              .implicit_value(true)
+              .help("Keyboard mode, outputs data as a single hex value (max_length is 8)");
+
     listen_cmd.add_argument("--max-length")
               .scan<'d', unsigned int>()
               .default_value(5U)
@@ -180,19 +185,33 @@ int main(int argc, char *argv[]) {
     if (prog.is_subcommand_used("list"))
         return cmd_list_devices();
     else if (prog.is_subcommand_used("listen")) {
-        auto cb = [](unsigned char* data, int length, TransferData*) {
-            for (size_t i = 0; i < length; ++i)
-                std::cout << std::format("{:#x} ", data[i]);
-
-            std::cout << '\n';
-        };
+        if (listen_cmd.get<bool>("--keyboard")) {
+            return listen_device_cb(
+                listen_cmd.get<uint16_t>("vid"),
+                listen_cmd.get<uint16_t>("pid"),
+                listen_cmd.get<uint8_t>("addr"),
+                8,
+                TransferData {
+                    .callback = [](unsigned char* data, int length, TransferData*) {
+                        std::cout << std::format("{:#x}\n", reinterpret_cast<int64_t*>(data)[0]);
+                    }
+                }
+            );
+        }
 
         return listen_device_cb(
             listen_cmd.get<uint16_t>("vid"),
             listen_cmd.get<uint16_t>("pid"),
             listen_cmd.get<uint8_t>("addr"),
             listen_cmd.get<unsigned int>("--max-length"),
-            cb
+            TransferData {
+                .callback = [](unsigned char* data, int length, TransferData*) {
+                    for (size_t i = 0; i < length; ++i)
+                        std::cout << std::format("{:#x} ", data[i]);
+
+                    std::cout << '\n';
+                }
+            }
         );
     } else
         std::cout << prog;

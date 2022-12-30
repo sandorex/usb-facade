@@ -32,7 +32,7 @@ SCROLL_RATE := 30
 WHEELV := 0x0800
 WHEELH := 0x01000
 
-test_cb(buf, buf_len, tdata) {
+callback(buf, buf_len, tdata) {
     btns := NumGet(buf, 1, "Char")
     x := NumGet(buf, 2, "Char")
     y := NumGet(buf, 3, "Char")
@@ -57,6 +57,6 @@ test_cb(buf, buf_len, tdata) {
 }
 
 ; NOTE: the dllcall will block the rest of script
-cb := CallbackCreate(test_cb, "Fast")
+cb := CallbackCreate(callback, "Fast")
 err := DllCall("usb-facade.dll\ahk_listen_device_cb", "UShort", vid, "UShort", pid, "UChar", addr, "UInt", max_len, "Ptr", cb, "Int")
 CallbackFree(cb)

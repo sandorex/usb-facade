@@ -14,7 +14,7 @@
 
 cmake_minimum_required (VERSION 3.12)
 
-project (usb-facade VERSION 0.1.0
+project (usb-facade VERSION 0.1.1
                     DESCRIPTION "Facade to map USB devices to do custom things"
                     LANGUAGES CXX)
 

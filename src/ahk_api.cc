@@ -59,5 +59,5 @@ API int ahk_init(bool debug) {
 
 /// @public
 API int ahk_listen_device_cb(uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData::CallbackFn* callback) {
-    return listen_device_cb(vid, pid, address, max_length, callback);
+    return listen_device_cb(vid, pid, address, max_length, TransferData { .callback = callback });
 }

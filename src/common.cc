@@ -57,7 +57,8 @@ std::string get_usb_string(int usb_code) {
     return string;
 }
 
-int listen_device_cb(uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData::CallbackFn* callback) {
+// TODO: split this into functions so there could be a non blocking function for AHK api
+int listen_device_cb(uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData tdata) {
     int err;
 
     libusb_device_handle* handle = libusb_open_device_with_vid_pid(NULL, vid, pid);
@@ -112,7 +113,7 @@ int listen_device_cb(uint16_t vid, uint16_t pid, uint8_t address, unsigned int m
 
     DEFER([&] { libusb_release_interface(handle, interface_index); });
 
-    std::vector<unsigned char> data(max_length);
+    std::vector<unsigned char> buffer(max_length);
 
     // libusb_transfer transfer;
     libusb_transfer* transfer = libusb_alloc_transfer(0);
@@ -133,19 +134,14 @@ int listen_device_cb(uint16_t vid, uint16_t pid, uint8_t address, unsigned int m
         libusb_submit_transfer(transfer);
     };
 
-    // expandable for futureproofing
-    TransferData transfer_data {
-        .callback = callback
-    };
-
     libusb_fill_interrupt_transfer(
         transfer,
         handle,
         address,
-        data.data(),
-        static_cast<int>(data.capacity()),
+        buffer.data(),
+        static_cast<int>(buffer.capacity()),
         interrupt,
-        &transfer_data,
+        &tdata,
         0
     );
 
