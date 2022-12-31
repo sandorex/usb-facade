@@ -12,8 +12,16 @@
 ; See the License for the specific language governing permissions and
 ; limitations under the License.
 
-; run in directory with the build executable and dll
-SetWorkingDir A_ScriptDir "\..\..\build"
+; allow the scripts to work if the dll is in the same directory
+if FileExist(A_WorkingDir "\usb-facade.dll") == "" {
+    ; run in directory with the build executable and dll
+    SetWorkingDir A_ScriptDir "\..\..\build"
+}
+
+if FileExist(A_WorkingDir "\usb-facade.dll") == "" {
+    MsgBox "Please place usb-facade.dll next to the script file (" A_ScriptDir ")", "usb-facade library not found", "OK Iconx"
+    Exit(1)
+}
 
 ; for debugging libusb
 LIBUSB_DEBUG := false
@@ -27,7 +35,7 @@ DllCall "usb-facade.dll\ahk_init", "Int", LIBUSB_DEBUG
 require_api_version(major, minor) {
     ret := DllCall("usb-facade.dll\ahk_check_api_version", "Int", major, "Int", minor, "Int")
     if !ret {
-        MsgBox "Incompatible usb-facade API version detected, aborting..", "API Version Mismatch", "T5 OK Iconx"
+        MsgBox "Incompatible usb-facade API version detected, aborting..", "API Version Mismatch", "OK Iconx"
         Exit(1)
     }
 }

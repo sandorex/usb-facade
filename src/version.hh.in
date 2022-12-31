@@ -11,3 +11,5 @@
 #else
 #define USB_FACADE_API_VERSION @usb-facade_VERSION_MINOR@
 #endif
+
+#define USB_FACADE_API_FULL_FILE R"xxx(@usb-facade_API_FULL_FILE@)xxx"

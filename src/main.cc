@@ -21,6 +21,8 @@
 #include "common.hh"
 #include "macros.hh"
 
+using namespace usb_facade;
+
 /// @brief lists all devices to stdout
 int cmd_list_devices() {
     libusb_device** devices;
@@ -121,8 +123,57 @@ int cmd_list_devices() {
 int main(int argc, char *argv[]) {
     argparse::ArgumentParser prog("usb-facade", USB_FACADE_VERSION_STRING);
 
-    prog.add_description("Read data from USB devices raw, let your imagination run wild");
-    prog.add_epilog("For autohotkey API check out https://github.com/sandorex/usb-facade/");
+    prog.add_description(R"xx(https://github.com/sandorex/usb-facade/
+Copyright 2022 Aleksandar Radivojevic
+Licensed under Apache 2.0 license
+
+Open source application/library for reading raw input from USB devices)xx");
+
+#ifdef _WIN32
+    prog.add_epilog(
+        R"xx(For AutoHotkey API read ahk_api.cc provided with the binaries
+
+                                    [NOTE]
+To use with a USB mouse/keyboard use Zadig to replace the driver with libusb
+Do note that that device won't function as a mouse/keyboard anymore
+To remove the driver uninstall the driver for the device in device manager
+
+Zadig download: https://zadig.akeo.ie/)xx"
+    );
+
+    prog.add_argument("--ahk-api")
+        .action([](const auto&){
+            std::cout << '\n' << USB_FACADE_API_FULL_FILE << '\n';
+            std::exit(0);
+        })
+        .default_value(false)
+        .implicit_value(true)
+        .help("Show AutoHotkey API");
+#endif
+
+    prog.add_argument("--license")
+        .action([](const auto&){
+            std::cout << R"xx(
+Copyright 2022 Aleksandar Radivojevic
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+)xx";
+        std::exit(0);
+        })
+        .default_value(false)
+        .implicit_value(true)
+        .help("Show the license");
 
     prog.add_argument("-d", "--debug")
         .default_value(false)

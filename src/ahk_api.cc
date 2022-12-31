@@ -1,4 +1,4 @@
-// Copyright 2022 Aleksandar Radivojević
+// Copyright 2022 Aleksandar Radivojevic
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// this code is windows only obviously
+// API VERSION @usb-facade_VERSION@
 
 #include <iostream>
 #include <format>
@@ -20,6 +20,8 @@
 #include "common.hh"
 #include "macros.hh"
 #include "usb-facade/version.hh"
+
+using namespace usb_facade;
 
 #define DEPRECATED __declspec(deprecated)
 #define API extern "C" __declspec(dllexport)
@@ -32,11 +34,6 @@ API int ahk_api_version() {
 /// @public
 API bool ahk_check_api_version(int major, int minor) {
     return USB_FACADE_VERSION_MAJOR == major && USB_FACADE_VERSION_MINOR >= minor;
-}
-
-/// @public
-API int ahk_api_version_minor() {
-    return USB_FACADE_VERSION_MINOR;
 }
 
 /// @public

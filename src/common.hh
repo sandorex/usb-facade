@@ -17,20 +17,30 @@
 #include <libusb.h>
 #include <string>
 
-/// @brief Gets string using libusb_get_string_descriptor_ascii, modifies string reference passed
-int get_string(libusb_device_handle* handle, uint8_t index, std::string& string, size_t max_length=100);
+namespace usb_facade {
+    /// @brief Gets string using libusb_get_string_descriptor_ascii, modifies string reference passed
+    int get_string(libusb_device_handle* handle, uint8_t index, std::string& string, size_t max_length=100);
 
-/// @brief converts the USB hex value from libusb to human readable one '0x210' -> '2.1'
-std::string get_usb_string(int usb_code);
+    /// @brief converts the USB hex value from libusb to human readable one '0x210' -> '2.1'
+    std::string get_usb_string(int usb_code);
 
-/// @public
-/// @brief Struct that is provided in callback
-struct TransferData {
-    using CallbackFn = void(unsigned char*, int, TransferData*);
+    /// @public
+    /// @brief Struct that is provided in callback
+    struct TransferData {
+        using CallbackFn = void(unsigned char*, int, TransferData*);
 
-    /// @brief function that is ran on interrupt
-    CallbackFn* callback = nullptr;
-};
+        /// @brief function that is ran on interrupt
+        CallbackFn* callback = nullptr;
+    };
 
-int listen_device_cb(uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData data);
+    /// @brief Struct containing pointers to all libusb descriptors for the device
+    struct Device {
+        libusb_device_handle* handle = nullptr;
+        libusb_config_descriptor* config_descriptor = nullptr;
+        libusb_transfer* transfer = nullptr;
+        int interface_index = -1;
+        int error = 0;
+    };
 
+    int listen_device_cb(uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData data);
+}

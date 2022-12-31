@@ -10,7 +10,7 @@ example they go in `examples/`
 
 ## AutoHotkey API
 
-Read [ahk_api](src/ahk_api.cc) file, that's the best way to learn
+Read [ahk_api.cc](src/ahk_api.cc) file, that's the best way to learn
 
 ## Planned Features
 

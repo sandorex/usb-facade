@@ -18,7 +18,7 @@ project (usb-facade VERSION 0.1.1
                     DESCRIPTION "Facade to map USB devices to do custom things"
                     LANGUAGES CXX)
 
-set (PROJECT_EXTERNAL ${PROJECT_SOURCE_DIR}/external)
+set (INSTALL_OUTPUT_DIR ${CMAKE_BINARY_DIR}/usb-facade)
 
 include (FetchContent)
 
@@ -37,8 +37,15 @@ if (WIN32)
         URL_HASH MD5=6736254ECADACD389E3FFD822283AC6A
     )
 
-    FetchContent_MakeAvailable (LIBUSB_SRC)
-    FetchContent_MakeAvailable (LIBUSB_BINARIES)
+    FetchContent_GetProperties(LIBUSB_SRC)
+    if(NOT LIBUSB_SRC_POPULATED)
+        FetchContent_Populate(LIBUSB_SRC)
+    endif()
+
+    FetchContent_GetProperties(LIBUSB_BINARIES)
+    if(NOT LIBUSB_SRC_POPULATED)
+        FetchContent_Populate(LIBUSB_BINARIES)
+    endif()
 endif ()
 
 FetchContent_Declare (
@@ -47,7 +54,10 @@ FetchContent_Declare (
     GIT_TAG 997da9255618311d1fcb0135ce86022729d1f1cb # v2.9
 )
 
-FetchContent_MakeAvailable (argparse)
+FetchContent_GetProperties(argparse)
+if(NOT argparse_POPULATED)
+    FetchContent_Populate(argparse)
+endif()
 
 find_path (LIBUSB_INCLUDE_DIR
     NAME libusb.h
@@ -64,21 +74,55 @@ if (NOT LIBUSB_INCLUDE_DIR OR NOT LIBUSB_LIBRARY)
     message (FATAL_ERROR "libusb not found")
 endif ()
 
+configure_file (src/ahk_api.cc ${PROJECT_BINARY_DIR}/ahk_api.cc)
+
+file (READ ${PROJECT_BINARY_DIR}/ahk_api.cc usb-facade_API_FULL_FILE)
+
 configure_file (src/version.hh.in ${PROJECT_BINARY_DIR}/include/usb-facade/version.hh)
 
 add_library (common_options INTERFACE)
 target_compile_features (common_options INTERFACE cxx_std_20)
 target_include_directories (common_options INTERFACE ${LIBUSB_INCLUDE_DIR}
                                                      ${PROJECT_SOURCE_DIR}/src
-                                                     ${PROJECT_BINARY_DIR}/include)
-target_link_libraries (common_options INTERFACE ${LIBUSB_LIBRARY}
-                                                argparse)
+                                                     ${PROJECT_BINARY_DIR}/include
+                                                     ${argparse_SOURCE_DIR}/include)
+target_link_libraries (common_options INTERFACE ${LIBUSB_LIBRARY})
 
-add_executable (usb-facade src/main.cc src/common.cc)
-target_link_libraries (usb-facade PUBLIC common_options)
+# common files
+add_library (common OBJECT src/common.cc)
+target_link_libraries (common PUBLIC common_options)
+
+add_executable (usb-facade-tool src/main.cc $<TARGET_OBJECTS:common>)
+target_link_libraries (usb-facade-tool PUBLIC common_options)
+
+install (FILES $<TARGET_FILE:usb-facade-tool>
+         DESTINATION ${INSTALL_OUTPUT_DIR}
+         RENAME usb-facade.exe)
+install (FILES ${PROJECT_SOURCE_DIR}/README.md
+               ${PROJECT_SOURCE_DIR}/LICENSE.txt
+         DESTINATION ${INSTALL_OUTPUT_DIR})
 
 if (WIN32)
-    add_library (usb-facade-ahk SHARED src/ahk_api.cc src/common.cc)
-    set_target_properties (usb-facade-ahk PROPERTIES OUTPUT_NAME usb-facade)
-    target_link_libraries (usb-facade-ahk PUBLIC common_options)
+    install (FILES ${PROJECT_BINARY_DIR}/ahk_api.cc DESTINATION ${INSTALL_OUTPUT_DIR})
+    install (DIRECTORY ${PROJECT_SOURCE_DIR}/examples
+             DESTINATION ${INSTALL_OUTPUT_DIR}
+             PATTERN "*.ahk")
+
+    add_library (usb-facade SHARED src/ahk_api.cc $<TARGET_OBJECTS:common>)
+    target_link_libraries (usb-facade PUBLIC common_options)
+
+    install (FILES $<TARGET_FILE:usb-facade> DESTINATION ${INSTALL_OUTPUT_DIR})
+    install (FILES $<TARGET_PDB_FILE:usb-facade>
+             CONFIGURATIONS Debug RelWithDebInfo
+             DESTINATION ${INSTALL_OUTPUT_DIR})
+
+    # warning message when the API file has changes
+    add_custom_target (print_api_diff ALL
+        COMMAND git diff --exit-code --shortstat LICENSE.txt && echo WARNING: AutoHotkey API changed! || echo Error could check for API changes
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        USES_TERMINAL)
+endif ()
+
+if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.18)
+    install (SCRIPT cmake/install.cmake)
 endif ()
