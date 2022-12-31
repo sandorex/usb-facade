@@ -40,7 +40,15 @@ callback(buf, buf_len, tdata) {
     }
 }
 
-; NOTE: the dllcall will block the rest of script
+exit_func(reason, code) {
+    ; make sure to close the device to avoid memory leaks
+    DllCall("usb-facade.dll\ahk_close_device_interrupt", "Ptr", device_ptr)
+    CallbackFree(cb)
+}
+
 cb := CallbackCreate(callback, "Fast")
-err := DllCall("usb-facade.dll\ahk_listen_device_cb", "UShort", vid, "UShort", pid, "UChar", addr, "UInt", max_len, "Ptr", cb, "Int")
-CallbackFree(cb)
+device_ptr := DllCall("usb-facade.dll\ahk_open_device_interrupt", "UShort", vid, "UShort", pid, "UChar", addr, "UInt", max_len, "Ptr", cb, "Ptr")
+
+check_device_open(device_ptr)
+
+OnExit exit_func

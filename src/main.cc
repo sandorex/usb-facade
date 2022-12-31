@@ -237,7 +237,7 @@ limitations under the License.
         return cmd_list_devices();
     else if (prog.is_subcommand_used("listen")) {
         if (listen_cmd.get<bool>("--keyboard")) {
-            return listen_device_cb(
+            return listen_device_interrupt(
                 listen_cmd.get<uint16_t>("vid"),
                 listen_cmd.get<uint16_t>("pid"),
                 listen_cmd.get<uint8_t>("addr"),
@@ -250,7 +250,7 @@ limitations under the License.
             );
         }
 
-        return listen_device_cb(
+        return listen_device_interrupt(
             listen_cmd.get<uint16_t>("vid"),
             listen_cmd.get<uint16_t>("pid"),
             listen_cmd.get<uint8_t>("addr"),

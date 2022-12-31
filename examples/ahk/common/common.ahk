@@ -39,3 +39,11 @@ require_api_version(major, minor) {
         Exit(1)
     }
 }
+
+check_device_open(device_ptr) {
+    ret := DllCall("usb-facade.dll\ahk_is_device_open", "Ptr", device_ptr, "int")
+    if ret != 0 {
+        MsgBox "Error opening device (code " ret "), aborting..", "usb-facade failed to open device", "OK Iconx"
+        Exit(1)
+    }
+}

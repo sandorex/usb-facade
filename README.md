@@ -12,10 +12,23 @@ example they go in `examples/`
 
 Read [ahk_api.cc](src/ahk_api.cc) file, that's the best way to learn
 
-## Planned Features
+## Building
 
-- A way to preparse the data coming from a device
-- Make keyboard listening a easier to parse in AHK as the data is convoluted
+Windows building is simple, just install VS Tools and cmake, and run following
+commands
+
+```shell
+cmake . -Bbuild
+cmake --build build
+
+# optional makes a zip file like github actions does
+cmake --install build
+```
+
+### Linux
+
+Install `libusb` using your package manager (make sure to install the `-dev`
+package if it exists) then run the same commands as for windows
 
 ## License
 

@@ -31,16 +31,24 @@ namespace usb_facade {
 
         /// @brief function that is ran on interrupt
         CallbackFn* callback = nullptr;
+
+        /// @brief if set to true the interrupt will not be called
+        bool pause = false;
     };
 
     /// @brief Struct containing pointers to all libusb descriptors for the device
     struct Device {
+        TransferData data;
         libusb_device_handle* handle = nullptr;
         libusb_config_descriptor* config_descriptor = nullptr;
         libusb_transfer* transfer = nullptr;
-        int interface_index = -1;
+        unsigned char* buffer = nullptr;
+        int buffer_length = 0;
+        int interface_index = 0;
         int error = 0;
     };
 
-    int listen_device_cb(uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData data);
+    void close_device_interrupt(Device* device);
+    Device* open_device_interrupt(uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData data);
+    int listen_device_interrupt(uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData data);
 }

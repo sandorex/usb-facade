@@ -54,7 +54,35 @@ API int ahk_init(bool debug) {
     return EXIT_SUCCESS;
 }
 
+API void ahk_close_device_interrupt(Device* device) {
+    close_device_interrupt(device);
+}
+
 /// @public
-API int ahk_listen_device_cb(uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData::CallbackFn* callback) {
-    return listen_device_cb(vid, pid, address, max_length, TransferData { .callback = callback });
+/// listen to usb device interrupt, non blocking
+/// @returns device struct pointer that needs to be freed with
+///
+/// @note frees automatically if any errors occur, does not free the callback
+API Device* ahk_open_device_interrupt(uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData::CallbackFn* callback) {
+    Device* device = open_device_interrupt(vid, pid, address, max_length, TransferData { .callback = callback });
+
+    const int error = device->error;
+    if (error != 0) {
+        close_device_interrupt(device);
+
+        return nullptr;
+    }
+
+    return device;
+}
+
+/// @public
+/// @brief gets error property of @ref Device
+API bool ahk_is_device_open(Device* device) {
+    return device != nullptr && device->error != 0;
+}
+
+/// @public @deprecated
+DEPRECATED API int ahk_listen_device_cb(uint16_t vid, uint16_t pid, uint8_t address, unsigned int max_length, TransferData::CallbackFn* callback) {
+    return listen_device_interrupt(vid, pid, address, max_length, TransferData { .callback = callback });
 }

@@ -118,7 +118,7 @@ if (WIN32)
 
     # warning message when the API file has changes
     add_custom_target (print_api_diff ALL
-        COMMAND git diff --exit-code --shortstat LICENSE.txt && echo WARNING: AutoHotkey API changed! || echo Error could check for API changes
+        COMMAND git diff --quiet src/ahk_api.cc || echo WARNING: AutoHotkey API file changed!
         WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
         USES_TERMINAL)
 endif ()
