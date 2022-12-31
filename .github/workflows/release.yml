@@ -17,7 +17,7 @@ jobs:
     # Build dev
     - name: Build DEV
       shell: bash
-      if: !startsWith(github.ref, 'refs/tags/')
+      if: ${{ !startsWith(github.ref, 'refs/tags/') }}
       run: |
         cmake . -DCMAKE_BUILD_TYPE=Debug -Bbuild
         cmake --build build --config Debug
