@@ -46,7 +46,7 @@ jobs:
         fail_on_unmatched_files: true
         prerelease: true
         files: | # NOTE: files have to be overriden each time, otherwise they will pile up infinitely
-          usb-facade.zip
+          usb-facade-win64.zip
 
     - name: Release Tagged Build
       uses: softprops/action-gh-release@v1
@@ -54,4 +54,4 @@ jobs:
       with:
         fail_on_unmatched_files: true
         files: |
-          usb-facade.zip
+          usb-facade-win64.zip

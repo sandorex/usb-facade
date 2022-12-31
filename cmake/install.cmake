@@ -12,5 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+if (WIN32)
+    set (ARCHIVE_SUFFIX "-win64")
+endif ()
+
 message("Archiving build")
-execute_process (COMMAND 7z a usb-facade.zip ./build/usb-facade/*)
+execute_process (COMMAND 7z a usb-facade${ARCHIVE_SUFFIX}.zip ./build/usb-facade/*)
